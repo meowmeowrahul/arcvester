@@ -2,6 +2,7 @@ import json
 from data_sanitizer import sanitize_arxiv_record
 from tokenizer import tokenizer
 from inverted_index import InvertedIndex
+from searcher import Searcher
 
 def run_sanitization_stage(input_path,output_path):
     processed_count = 0
@@ -69,12 +70,48 @@ def run_indexation_stage(input_path,output_path):
                 print(f"  ...indexed {processed_count} documents.")
     inverted.save_to_disk(output_path) 
     print(f"Successfully Indexed:{processed_count} documents")       
+
+def load_document_metadata(metadata_path):
+    metadata ={}
+    with open(metadata_path,'r') as f:
+        for line in f:
+            record = json.loads(line)
+            
+            metadata[record['id']]= record.get('clean_title','No Title')
+    return metadata
+def run_search_cli(index_path, sanitized_path):
+    print("Loading Search Engine...")
     
+    searcher = Searcher(index_path)
+    doc_metadata = load_document_metadata(sanitized_path)
+    print("Search Engine Loaded. Type ':q' to quit/end")
+    
+    while True:
+        query = input('\nEnter your search query: ')
+        
+        if query.lower()==':q':
+            print("Adios Nuclear Reactor")
+            break
+        
+        if not query:
+            continue
+        
+        results = searcher.search(query)
+        
+        if not results:
+            print("No results found.")
+        else:
+            print(f"\n--- Top {len(results)} results for '{query}' ---")
+            for i, (doc_id, score) in enumerate(results):
+                title = doc_metadata.get(doc_id, "Title not found.")
+                print(f"{i+1}. [Score: {score:.4f}] {title} (ID: {doc_id})")
 if __name__ == "__main__":
-    raw_data_file = "./archive/metadata-200.json"
-    sanitized_file = "./archive/output-200.json"
-    tokenized_file = './archive/output-200-tokenized.json'
-    indexed_file = './archive/output-200-indexed.json'
-    run_sanitization_stage(raw_data_file,sanitized_file)
-    run_tokenization_stage(sanitized_file,tokenized_file)
-    run_indexation_stage(tokenized_file,indexed_file)
+    raw_data_path = "./archive/metadata-200.json"
+    sanitized_path = "./archive/output-200.json"
+    tokenized_path = './archive/output-200-tokenized.json'
+    indexed_path = './archive/output-200-indexed.json'
+    #run_sanitization_stage(raw_data_path,sanitized_path)
+    #run_tokenization_stage(sanitized_path,tokenized_path)
+    #run_indexation_stage(tokenized_path,indexed_path)
+    
+    run_search_cli(indexed_path,sanitized_path)

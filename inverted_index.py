@@ -38,5 +38,5 @@ class InvertedIndex:
             data = json.load(f)
             # defaultdict requires a factory, so we load and convert
             self.index = defaultdict(list, data['index'])
-            self.document_lengths = defaultdict(dict,data['doc_lengths'])
+            self.document_lengths = defaultdict(dict,data['document_lengths'])
         print(f"Index loaded from {path}")
