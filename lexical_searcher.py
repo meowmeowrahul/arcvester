@@ -1,7 +1,7 @@
 from inverted_index import InvertedIndex
 from tokenizer import tokenizer
 import math
-class Searcher:
+class LexicalSearcher:
     def __init__(self,index_path):
         self.index = InvertedIndex()
         self.index.load_from_disk(index_path)
