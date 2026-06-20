@@ -1,10 +1,13 @@
 import json
+import numpy as np
 from data_sanitizer import sanitize_arxiv_record
 from tokenizer import tokenizer
 from inverted_index import InvertedIndex
 from lexical_searcher import LexicalSearcher
 from vectored_index import VectorIndex
-from semantic_searcher import SemanticSearcher
+from semantic_searcher import SemanticSearcher 
+import hasher as hsh
+from lsh_custom_class import LSH
 def run_sanitization_stage(input_path,output_path):
     processed_count = 0
     print("Starting data sanitization...")
@@ -77,6 +80,37 @@ def run_vector_stage(input_path,output_path):
     vector.create_indexes_from_file(input_path)
     vector.save_to_disk(output_path)
 
+def run_lsh_algo(input_path):
+    b = 20 
+    k = 8
+    shingle_set = []
+    doc_ids = []
+    lsh = LSH(b)
+    with open(input_path,'r') as infile:
+        for line in infile:
+            try:
+                record = json.loads(line)
+            except json.JSONDecodeError :
+                continue
+            clean_text = record.get("clean_title","")+ " " + record.get("clean_abstract","")
+            doc_ids.append(record.get("id"))
+            shingle_set.append(hsh.shingle(clean_text,k))
+    vocab = hsh.vocab(shingle_set)
+    shingle_1hot = []
+    for shingle in shingle_set:
+        shingle_1hot.append(hsh.one_hot_encoder(shingle,vocab))
+    shingle_1hot = np.stack(shingle_1hot)
+    arr = hsh.min_hash(vocab,100)
+    signatures = []
+    for vector in shingle_1hot:
+        signatures.append(hsh.get_signature(arr,vector))
+    signatures = np.stack(signatures)
+    for signature in signatures:
+        lsh.add_hash(signature)
+    candidate_pairs = lsh.check_candidates(doc_ids)
+    return candidate_pairs
+
+        
 def load_document_metadata(metadata_path):
     metadata ={}
     with open(metadata_path,'r') as f:
@@ -109,7 +143,6 @@ def run_search_cli_lexical(index_path, sanitized_path):
         else:
             print(f"\n--- Top {len(results)} results for '{query}' ---")
             for i, (doc_id, score) in enumerate(results):
-                title = doc_metadata.get(doc_id, "Title not found.")
                 print(f"{i+1}. [Score: {score:.4f}] {title} (ID: {doc_id})")
 def run_search_cli_semantic(vectored_path, sanitized_path):
     print("Loading Semantic Search Engine...")
@@ -147,5 +180,7 @@ if __name__ == "__main__":
     #run_tokenization_stage(sanitized_path,tokenized_path)
     #run_indexation_stage(tokenized_path,indexed_path)
     
-    run_vector_stage(sanitized_path,vectored_path)
-    run_search_cli_semantic(vectored_path,sanitized_path)
+    #run_vector_stage(sanitized_path,vectored_path)
+    #run_search_cli_semantic(vectored_path,sanitized_path)
+    cand_pairs = run_lsh_algo(sanitized_path)
+    print(cand_pairs)
