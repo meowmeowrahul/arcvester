@@ -1,7 +1,10 @@
 from sentence_transformers import SentenceTransformer, util
+import hasher
+from lsh_custom_class import LSH
 import json
 import numpy as np
 import torch
+import pickle
 
 class VectorIndex:
     def __init__(self, model_name='all-MiniLM-L6-v2'):
@@ -17,6 +20,11 @@ class VectorIndex:
         self.model = SentenceTransformer(model_name, device=self.device)
         self.doc_ids = []
         self.embeddings = None
+        self.lsh = LSH(b=10)
+        self.candidates = ()
+        self.num_dimensions = 384
+        self.num_bits = 100
+        self.hyperplanes = np.random.randn(self.num_bits,self.num_dimensions)
         print("Model loaded.")
 
     def create_indexes_from_file(self, input_path: str):
@@ -55,7 +63,42 @@ class VectorIndex:
             show_progress_bar=True,
             convert_to_tensor=True # Optimized for util.semantic_search
         )
-        print("Encoding complete.")
+        #minhash = hasher.min_hash(np.arange(len(self.embeddings)),resolution=100)  
+        
+        signatures = [hasher.get_signature(self.hyperplanes,embedding) for embedding in self.embeddings ]
+
+        for i,sig in enumerate(signatures):
+            self.lsh.add_hash(sig)
+
+        self.candidates = self.lsh.check_candidates(self.doc_ids)
+        print(self.candidates)
+
+                
+        print("\n--- Testing Candidate Similarities ---")
+        # Ensure we don't go out of bounds if there are fewer than 3 candidates
+        num_to_check = min(3, len(self.candidates)) 
+        candidate_list = list(self.candidates)
+        
+        for i in range(num_to_check-1):
+            # A candidate pair is a tuple, so we unpack it directly
+            doc_id_1 = candidate_list[i][0]
+            doc_id_2 = candidate_list[i][1]
+            
+            print(f"DOC_IDs:\n{doc_id_1} & {doc_id_2}")
+           #print(self.doc_ids[0])
+           #print(type(self.doc_ids[0]))
+            # SAFE INDEXING: Find the actual index of the doc_id in your list
+            idx_1 = self.doc_ids.index(doc_id_1)
+            idx_2 = self.doc_ids.index(doc_id_2)
+            
+            # USE ORIGINAL EMBEDDINGS, NOT SIGNATURES
+            # We pull them from the GPU/CPU tensor and convert to standard numpy arrays
+            vec_1 = self.embeddings[idx_1].cpu().numpy()
+            vec_2 = self.embeddings[idx_2].cpu().numpy()
+            
+            print("cosine_similarity:")
+            print(self.lsh.cosine_similarity(vec_1, vec_2))
+            print("-" * 30)
 
     def search(self, query: str, top_k: int = 10):
         """
@@ -72,49 +115,66 @@ class VectorIndex:
             raise RuntimeError("Index is not built or loaded. Cannot perform search.")
 
         # 1. Encode the query
-        query_embedding = self.model.encode(query, convert_to_tensor=True)
-
+        query_embedding = self.model.encode(query, convert_to_tensor=False)
+        signature = hasher.get_signature(self.hyperplanes,query_embedding)
+        
         # 2. Perform the search
         # util.semantic_search will find the top_k most similar documents
-        hits = util.semantic_search(query_embedding, self.embeddings, top_k=top_k)
-        
+       #hits = util.semantic_search(query_embedding, self.embeddings, top_k=top_k)
+        candidate_indices = self.lsh.get_candidates(signature)
         # The result is a list of lists, since we only have one query, we take the first element
-        hits = hits[0]
-
+       #hits = hits[0]
         # 3. Format the results
+        if not candidate_indices:
+            return []
         results = []
-        for hit in hits:
-            doc_id = self.doc_ids[hit['corpus_id']]
-            score = hit['score']
-            results.append((doc_id, score))
+        embeddings_np = self.embeddings.cpu().numpy() if torch.is_tensor(self.embeddings)  else self.embeddings
+       #print(embeddings_np)
+        for idx in candidate_indices:
+            doc_vector = embeddings_np[idx]
             
-        return results
+            score = self.lsh.cosine_similarity(query_embedding,doc_vector)
+            results.append((self.doc_ids[idx],score))
+        results.sort(key=lambda x:x[1],reverse = True)
+
+        return results[:top_k]
 
     def save_to_disk(self, path: str):
         """
-        Saves the vector index to disk in a compressed .npz format.
+        Saves the embeddings/hyperplanes to .npz and the LSH state to .pkl
         """
         print(f"Saving vector index to {path}...")
         if self.embeddings is None:
-            raise RuntimeError("No embeddings to save. Please run create_indexes_from_file first.")
+            raise RuntimeError("No embeddings to save.")
         
-        # We'll save as a dictionary for clarity
+        # 1. Save tensors and arrays
         data_to_save = {
             'doc_ids': np.array(self.doc_ids),
-            'embeddings': self.embeddings.cpu().numpy() # Move to CPU and convert to numpy for saving
+            'embeddings': self.embeddings.cpu().numpy() if torch.is_tensor(self.embeddings) else self.embeddings,
+            'hyperplanes': self.hyperplanes 
         }
-        np.savez_compressed(path, **data_to_save)
+        np.savez_compressed(f"{path}_data.npz", **data_to_save)
+        
+        # 2. Save the LSH object state (the buckets and counter)
+        with open(f"{path}_lsh.pkl", "wb") as f:
+            pickle.dump(self.lsh, f)
+            
         print("Successfully saved index.")
 
     def load_from_disk(self, path: str):
         """
-        Loads the vector index from a .npz file.
+        Loads both the tensor data and the stateful LSH engine.
         """
         print(f"Loading vector index from {path}...")
-        data = np.load(path)
-        self.doc_ids = data['doc_ids'].tolist()
         
-        # Convert the loaded numpy array back to a tensor on the correct device
-        loaded_embeddings = torch.from_numpy(data['embeddings']).to(self.device)
-        self.embeddings = loaded_embeddings
+        # 1. Load numpy arrays
+        data = np.load(f"{path}_data.npz", allow_pickle=True)
+        self.doc_ids = data['doc_ids'].tolist()
+        self.embeddings = torch.from_numpy(data['embeddings']).to(self.device)
+        self.hyperplanes = data['hyperplanes']
+        
+        # 2. Load LSH state
+        with open(f"{path}_lsh.pkl", "rb") as f:
+            self.lsh = pickle.load(f)
+            
         print(f"Successfully loaded index with {len(self.doc_ids)} documents.")

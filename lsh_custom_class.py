@@ -1,5 +1,6 @@
 import numpy as np 
 from itertools import combinations
+import torch
 class LSH:
     def __init__(self,b):
         self.buckets = []
@@ -7,6 +8,8 @@ class LSH:
         self.b = b
         for i in range(b):
             self.buckets.append({})
+    def cosine_similarity(self,vector_A, vector_B):
+        return (np.dot(vector_A, vector_B)) / (np.linalg.norm(vector_A) * np.linalg.norm(vector_B)) 
         
     def make_subvecs(self,signature):
         l = len(signature)
@@ -17,8 +20,8 @@ class LSH:
             subvec.append(signature[i:i+r])
         return np.stack(subvec)
     def add_hash(self,signature):
-        subvec = self.make_subvecs(signature).astype(str)
-        for i,subvec in enumerate(subvec):
+        subvecs = self.make_subvecs(signature).astype(str)
+        for i,subvec in enumerate(subvecs):
             subvec = ','.join(subvec)
             if subvec not in self.buckets[i].keys():
                 self.buckets[i][subvec]=[]
@@ -37,11 +40,19 @@ class LSH:
                     # Map those integers back to your actual JSON string IDs
                     actual_ids = [ids[hit] for hit in hits]
                     
-                    # Generate all pairs from the documents in this bucket
-                    for pair in combinations(actual_ids, 2):
-                        # Sort the tuple so ("A", "B") and ("B", "A") are recognized as the same pair
-                        candidates.add(tuple(sorted(pair)))
-                        
+                    candidates.add(tuple(actual_ids))   
         return candidates
+    def get_candidates(self,signature):
+        subvecs = self.make_subvecs(signature).astype(str)
+        candidate_indices =set()
 
+        for i,subvec in enumerate(subvecs):
+            subvec_str = ','.join(subvec)
+            if subvec_str in self.buckets[i]:
+                candidate_indices.update(self.buckets[i][subvec_str])
+        if not candidate_indices:
+            return [] #No collisions 
+        return candidate_indices
+        
+    
 
