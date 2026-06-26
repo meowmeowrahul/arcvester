@@ -156,8 +156,9 @@ class VectorIndex:
                 doc_id = self.doc_ids[idx]
                 score = D[0][i]  # Extract the corresponding score
                 results.append((doc_id, score))
+        results.sort(key=lambda x: x[1], reverse=True)
 
-        return results
+        return results[:k]
 
     def save_to_disk(self, path: str):
         """

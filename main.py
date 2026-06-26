@@ -1,6 +1,8 @@
+import gc
 import json
 from data_sanitizer import sanitize_arxiv_record
 from faiss_index import VectorIndex
+from rank_fuser import reciprocal_rank_fusion
 from tokenizer import tokenizer
 from inverted_index import InvertedIndex
 from vectored_index import CustomVectorIndex
@@ -47,7 +49,7 @@ def run_tokenization_stage(input_path, output_path):
             outfile.write(json.dumps(clean_record) + "\n")
 
             processed_count += 1
-            if processed_count % 50 == 0:
+            if processed_count % 50000 == 0:
                 print(f"  ...tokenized {processed_count} documents.")
     print(f"Success! Output File Path:-{output_path} ")
 
@@ -66,14 +68,15 @@ def run_indexation_stage(input_path, output_path):
                 continue
 
             doc_id = record.get("id")
-            title_tokens = record.get("clean_title")
-            abstract_tokens = record.get("clean_abstract")
+            title_tokens = record.get("clean_title", [])
+            abstract_tokens = record.get("clean_abstract", [])
 
             if doc_id:
                 inverted.add_document(doc_id, "title", title_tokens)
                 inverted.add_document(doc_id, "abstract", abstract_tokens)
             processed_count += 1
-            if processed_count % 50 == 0:
+            if processed_count % 50000 == 0:
+                gc.collect()
                 print(f"  ...indexed {processed_count} documents.")
     inverted.save_to_disk(output_path)
     print(f"Successfully Indexed:{processed_count} documents")
@@ -190,19 +193,45 @@ def run_search_cli_semantic(vectored_path, sanitized_path, type="faiss"):
                 print(f"{i + 1}. [Score: {score:.4f}] {title} (ID: {doc_id})")
 
 
+def run_search_combined(top_k: int, vectored_path, indexed_path, sanitized_path):
+    searcher_semantic = SemanticSearcher(vectored_path)
+    searcher_lexical = LexicalSearcher(indexed_path)
+    doc_metadata = load_document_metadata(sanitized_path)
+    while True:
+        query = input("\nEnter your search query: ")
+
+        if query.lower() == ":q":
+            print("Adios Nuclear Reactor")
+            break
+
+        if not query:
+            continue
+
+        results_semantic = searcher_semantic.search(query, top_k)
+        results_lexical = searcher_lexical.search(query, top_k)
+        results = reciprocal_rank_fusion(results_semantic, results_lexical)
+        if not results:
+            print("No results found.")
+        else:
+            print(f"\n--- Top {len(results)} results for '{query}' ---")
+            for i, (doc_id, score) in enumerate(results):
+                title = doc_metadata.get(doc_id, "Title not found.")
+                print(f"{i + 1}. [Score: {score:.4f}] {title} (ID: {doc_id})")
+
+
 if __name__ == "__main__":
     raw_data_path = "./archive/arxiv-metadata-oai-snapshot.json"
     sanitized_path = "./archive/output-oai.json"
-    tokenized_path = "./archive/output-200-tokenized.json"
-    indexed_path = "./archive/output-200-indexed.json"
-    vectored_path = "./archive/output-200-vectored.json.npz"
-    vectored_path_faiss = "./archive/output-oai-vectored-faiss.json.npz"
+    tokenized_path = "./archive/output-tokenized.json"
+    indexed_path = "./archive/output-indexed.pkl"
+    vectored_path = "./archive/output-vectored.json.npz"
+    vectored_path_faiss = "./archive/searchis_index"
     # run_sanitization_stage(raw_data_path, sanitized_path)
-    # run_tokenization_stage(sanitized_path,tokenized_path)
-    # run_indexation_stage(tokenized_path,indexed_path)
+    # run_tokenization_stage(sanitized_path, tokenized_path)
+    # run_indexation_stage(tokenized_path, indexed_path)
 
     # run_vector_stage(sanitized_path,vectored_path)
     # run_vector_stage_faiss(sanitized_path, vectored_path_faiss)
     # run_search_cli_semantic(vectored_path_faiss, sanitized_path)
     # cand_pairs = run_lsh_algo(sanitized_path)
-    # run_search_cli_lexical(indexed_path, sanitized_path)
+    run_search_combined(30, vectored_path_faiss, indexed_path, sanitized_path)

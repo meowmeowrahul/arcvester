@@ -20,4 +20,4 @@ def reciprocal_rank_fusion(semantic_results, lexical_results, k=60):
     # Sort the final dictionary by the fused RRF score in descending order
     final_scores = sorted(fused_scores.items(), key=lambda item: item[1], reverse=True)
 
-    return final_scores
+    return final_scores[:k]
