@@ -1,6 +1,1 @@
-archive.zip
-archive/arxiv-metadata-oai-snapshot.json
 .venv
-__pycache__
-archive/output-oai.json
-archive/*
