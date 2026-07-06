@@ -5,35 +5,36 @@ function handleKeyPress(event) {
     performSearch();
   }
 }
-
+function clearInput() {
+  document.getElementById("search-input").value = "";
+}
 async function performSearch() {
-  const query = document.getElementById('search-input').value.trim();
+  const query = document.getElementById("search-input").value.trim();
   if (!query) return;
 
-  const resultsContainer = document.getElementById('results-container');
-  const loadingIndicator = document.getElementById('loading');
+  const resultsContainer = document.getElementById("results-container");
+  const loadingIndicator = document.getElementById("loading");
 
   // Reset UI
-  resultsContainer.innerHTML = '';
-  loadingIndicator.classList.remove('hidden');
+  resultsContainer.innerHTML = "";
+  loadingIndicator.classList.remove("hidden");
 
   try {
     // Fetch the JSON from your FastAPI backend
     const response = await fetch(API_URL + encodeURIComponent(query));
     const data = await response.json();
 
-    loadingIndicator.classList.add('hidden');
+    loadingIndicator.classList.add("hidden");
     renderResults(data.results);
   } catch (error) {
-    loadingIndicator.classList.add('hidden');
+    loadingIndicator.classList.add("hidden");
     resultsContainer.innerHTML = `<p class="text-red-500 text-center">Error connecting to the search engine. Is FastAPI running?</p>`;
     console.error("Search Error:", error);
   }
 }
 
 function renderResults(results) {
-  const container = document.getElementById('results-container');
-
+  const container = document.getElementById("results-container");
   if (results.length === 0) {
     container.innerHTML = `<p class="text-gray-500 text-center">No results found.</p>`;
     return;
@@ -60,6 +61,6 @@ function renderResults(results) {
                 </p>
             </div>
         `;
-    container.insertAdjacentHTML('beforeend', card);
+    container.insertAdjacentHTML("beforeend", card);
   });
 }
