@@ -127,6 +127,19 @@ def run_vector_stage_faiss(input_path, output_path):
 #       return candidate_pairs
 
 
+def load_document_with_abstract(metadata_path):
+    metadata = {}
+    with open(metadata_path, "r") as f:
+        for line in f:
+            record = json.loads(line)
+
+            metadata[record["id"]] = {
+                "title": record.get("clean_title", "No Title"),
+                "abstract": record.get("clean_abstract", "No Abstract"),
+            }
+    return metadata
+
+
 def load_document_metadata(metadata_path):
     metadata = {}
     with open(metadata_path, "r") as f:
@@ -136,14 +149,17 @@ def load_document_metadata(metadata_path):
             metadata[record["id"]] = record.get("clean_title", "No Title")
     return metadata
 
-def run_search_lexical(index_path,query,top_k,k1,b):
-    searcher = LexicalSearcher(index_path,k1,b)
-    results = searcher.search(query,top_k)
+
+def run_search_lexical(index_path, query, top_k, k1, b):
+    searcher = LexicalSearcher(index_path, k1, b)
+    results = searcher.search(query, top_k)
     if not results:
         return None
     else:
         return results
-def run_search_cli_lexical(index_path, sanitized_path):
+
+
+def run_search_cli_lexical(index_path):
     print("Loading Lexical Search Engine...")
 
     searcher = LexicalSearcher(index_path)
@@ -171,10 +187,10 @@ def run_search_cli_lexical(index_path, sanitized_path):
                 print(f"{i + 1}. [Score: {score:.4f}] {title} (ID: {doc_id})")
 
 
-def run_search_cli_semantic(vectored_path, sanitized_path, type="faiss"):
+def run_search_cli_semantic(type="faiss"):
     print("Loading Semantic Search Engine...")
 
-    searcher = SemanticSearcher(vectored_path, type)
+    searcher = SemanticSearcher(vectored_path)
     doc_metadata = load_document_metadata(sanitized_path)
     print("Search Engine Loaded. Type ':q' to quit/end")
 
@@ -199,7 +215,7 @@ def run_search_cli_semantic(vectored_path, sanitized_path, type="faiss"):
                 print(f"{i + 1}. [Score: {score:.4f}] {title} (ID: {doc_id})")
 
 
-def run_search_combined(top_k: int, vectored_path, indexed_path, sanitized_path):
+def run_search_combined_cli(top_k: int):
     searcher_semantic = SemanticSearcher(vectored_path)
     searcher_lexical = LexicalSearcher(indexed_path)
     doc_metadata = load_document_metadata(sanitized_path)
@@ -225,19 +241,41 @@ def run_search_combined(top_k: int, vectored_path, indexed_path, sanitized_path)
                 print(f"{i + 1}. [Score: {score:.4f}] {title} (ID: {doc_id})")
 
 
+def run_search_combined(
+    query, top_k, doc_metadata, searcher_semantic, searcher_lexical
+):
+    results_semantic = searcher_semantic.search(query, top_k)
+    results_lexical = searcher_lexical.search(query, top_k)
+    results = reciprocal_rank_fusion(results_semantic, results_lexical)
+
+    if not results:
+        return "No results found."
+    else:
+        new_results = []
+        for doc_id, score in results:
+            doc = doc_metadata.get(doc_id, "Title not found")
+            title = doc.get("title")
+            abstract = doc.get("abstract")
+            new_results.append(
+                {"doc_id": doc_id, "title": title, "abstract": abstract, "score": score}
+            )
+        return new_results
+
+
 if __name__ == "__main__":
     raw_data_path = "./archive/arxiv-metadata-oai-snapshot.json"
     sanitized_path = "./archive/output-oai.json"
     tokenized_path = "./archive/output-tokenized.json"
     indexed_path = "./archive/output-indexed.pkl"
-    vectored_path = "./archive/output-vectored.json.npz"
+    vectored_path = "./archive/output-vectored"
     vectored_path_faiss = "./archive/searchis_index"
+
     # run_sanitization_stage(raw_data_path, sanitized_path)
-    # run_tokenization_stage(sanitized_path, tokenized_path)
+    # # run_tokenization_stage(sanitized_path, tokenized_path)
     # run_indexation_stage(tokenized_path, indexed_path)
 
     # run_vector_stage(sanitized_path,vectored_path)
     # run_vector_stage_faiss(sanitized_path, vectored_path_faiss)
     # run_search_cli_semantic(vectored_path_faiss, sanitized_path)
     # cand_pairs = run_lsh_algo(sanitized_path)
-    run_search_combined(30, vectored_path_faiss, indexed_path, sanitized_path)
+    # run_search_combined(query, 30)
