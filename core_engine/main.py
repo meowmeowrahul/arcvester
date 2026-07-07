@@ -1,19 +1,21 @@
 import gc
 import json
-from core_engine.data_sanitizer import sanitize_arxiv_record
-from core_engine.faiss_index import VectorIndex
-from core_engine.rank_fuser import reciprocal_rank_fusion
-from core_engine.tokenizer import tokenizer
-from core_engine.inverted_index import InvertedIndex
-from core_engine.vectored_index import CustomVectorIndex
-from core_engine.semantic_searcher import SemanticSearcher
-from core_engine.lexical_searcher import LexicalSearcher
+
+from torch import Value
+from data_sanitizer import sanitize_arxiv_record
+from faiss_index import VectorIndex
+from rank_fuser import reciprocal_rank_fusion
+from tokenizer import tokenizer
+from inverted_index import InvertedIndex
+from vectored_index import CustomVectorIndex
+from semantic_searcher import SemanticSearcher
+from lexical_searcher import LexicalSearcher
 
 
-def run_sanitization_stage(input_path, output_path):
+def run_sanitization_stage(raw_data_path, sanitized_path):
     processed_count = 0
     print("Starting data sanitization...")
-    with open(input_path, "r") as infile, open(output_path, "w") as outfile:
+    with open(raw_data_path, "r") as infile, open(sanitized_path, "w") as outfile:
         for line in infile:
             try:
                 record = json.loads(line)
@@ -28,10 +30,10 @@ def run_sanitization_stage(input_path, output_path):
     print(f"Success! Processed and cleaned {processed_count} papers.")
 
 
-def run_tokenization_stage(input_path, output_path):
+def run_tokenization_stage(sanitized_path, tokenized_path):
     processed_count = 0
     print("Starting Tokenization...")
-    with open(input_path, "r") as infile, open(output_path, "w") as outfile:
+    with open(sanitized_path, "r") as infile, open(tokenized_path, "w") as outfile:
         for line in infile:
             try:
                 record = json.loads(line)
@@ -51,16 +53,16 @@ def run_tokenization_stage(input_path, output_path):
             processed_count += 1
             if processed_count % 50000 == 0:
                 print(f"  ...tokenized {processed_count} documents.")
-    print(f"Success! Output File Path:-{output_path} ")
+    print(f"Success! Output File Path:-{tokenized_path} ")
 
 
-def run_indexation_stage(input_path, output_path):
+def run_indexation_stage(tokenized_path, indexed_path):
     print("Starting Indexing.....")
     inverted = InvertedIndex()
 
     processed_count = 0
 
-    with open(input_path, "r") as infile:
+    with open(tokenized_path, "r") as infile:
         for line in infile:
             try:
                 record = json.loads(line)
@@ -78,22 +80,22 @@ def run_indexation_stage(input_path, output_path):
             if processed_count % 50000 == 0:
                 gc.collect()
                 print(f"  ...indexed {processed_count} documents.")
-    inverted.save_to_disk(output_path)
+    inverted.save_to_disk(indexed_path)
     print(f"Successfully Indexed:{processed_count} documents")
 
 
-def run_vector_stage_custom(input_path, output_path):
+def run_vector_stage_custom(sanitized_path, vectored_path):
     vector = CustomVectorIndex()
-    vector.create_indexes_from_file(input_path)
-    vector.save_to_disk(output_path)
+    vector.create_indexes_from_file(sanitized_path)
+    vector.save_to_disk(vectored_path)
 
 
-def run_vector_stage_faiss(input_path, output_path):
+def run_vector_stage_faiss(sanitized_path, vectored_path):
     vector = VectorIndex()
     vector.train_index_on_file(
-        input_path, d=384, m=8, nbits=8, nlist=1024, chunk_size=150000
+        sanitized_path, d=384, m=8, nbits=8, nlist=1024, chunk_size=150000
     )
-    vector.save_to_disk(output_path)
+    vector.save_to_disk(vectored_path)
 
 
 #   def run_lsh_algo(input_path):
@@ -150,8 +152,8 @@ def load_document_metadata(metadata_path):
     return metadata
 
 
-def run_search_lexical(index_path, query, top_k, k1, b):
-    searcher = LexicalSearcher(index_path, k1, b)
+def run_search_lexical(index_path, query, top_k=10):
+    searcher = LexicalSearcher(index_path)
     results = searcher.search(query, top_k)
     if not results:
         return None
@@ -159,7 +161,7 @@ def run_search_lexical(index_path, query, top_k, k1, b):
         return results
 
 
-def run_search_cli_lexical(index_path):
+def run_search_cli_lexical(index_path, sanitized_path):
     print("Loading Lexical Search Engine...")
 
     searcher = LexicalSearcher(index_path)
@@ -187,10 +189,10 @@ def run_search_cli_lexical(index_path):
                 print(f"{i + 1}. [Score: {score:.4f}] {title} (ID: {doc_id})")
 
 
-def run_search_cli_semantic(type="faiss"):
+def run_search_cli_semantic(vectored_path, sanitized_path, type="faiss"):
     print("Loading Semantic Search Engine...")
 
-    searcher = SemanticSearcher(vectored_path)
+    searcher = SemanticSearcher(vectored_path, type)
     doc_metadata = load_document_metadata(sanitized_path)
     print("Search Engine Loaded. Type ':q' to quit/end")
 
@@ -215,7 +217,7 @@ def run_search_cli_semantic(type="faiss"):
                 print(f"{i + 1}. [Score: {score:.4f}] {title} (ID: {doc_id})")
 
 
-def run_search_combined_cli(top_k: int):
+def run_search_combined_cli(sanitized_path, vectored_path, indexed_path, top_k: int):
     searcher_semantic = SemanticSearcher(vectored_path)
     searcher_lexical = LexicalSearcher(indexed_path)
     doc_metadata = load_document_metadata(sanitized_path)
@@ -271,11 +273,34 @@ if __name__ == "__main__":
     vectored_path_faiss = "./archive/searchis_index"
 
     # run_sanitization_stage(raw_data_path, sanitized_path)
-    # # run_tokenization_stage(sanitized_path, tokenized_path)
+    # run_tokenization_stage(sanitized_path, tokenized_path)
     # run_indexation_stage(tokenized_path, indexed_path)
 
     # run_vector_stage(sanitized_path,vectored_path)
     # run_vector_stage_faiss(sanitized_path, vectored_path_faiss)
     # run_search_cli_semantic(vectored_path_faiss, sanitized_path)
     # cand_pairs = run_lsh_algo(sanitized_path)
-    # run_search_combined(query, 30)
+    # run_search_combined_cli(query, 30)
+    while True:
+        print("1.Search CLI Lexical")
+        print("2.Search CLI Semantic(Faiss)")
+        print("3.Search CLI Semantic(Custom)")
+        print("4.Search RRF(Combined)")
+        print("5.Quit")
+        try:
+            choice = int(input("Enter Choice:"))
+        except ValueError:
+            print("Enter Valid Number")
+            continue
+        match choice:
+            case 1:
+                run_search_cli_lexical(indexed_path, sanitized_path)
+            case 2:
+                run_search_cli_semantic(vectored_path_faiss, sanitized_path)
+            case 3:
+                run_search_cli_semantic(vectored_path, sanitized_path, type="Custom")
+            case 4:
+                break
+            case _:
+                print("Enter from given Choices(1-4)")
+                continue

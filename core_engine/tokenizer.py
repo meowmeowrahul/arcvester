@@ -1,5 +1,5 @@
 import re
-from core_engine.stopwords import stop_words
+from stopwords import stop_words
 
 
 # Expects String of words ex: "aaaa bbb is a way"
@@ -83,4 +83,3 @@ def tokenizer(text):
     after_token = tokenizer_part1(text)
     after_stem = stemming_algo(after_token)
     return after_stem
-

@@ -1,5 +1,5 @@
-from core_engine.inverted_index import InvertedIndex, ID_TO_FIELD
-from core_engine.tokenizer import tokenizer
+from inverted_index import InvertedIndex, ID_TO_FIELD
+from tokenizer import tokenizer
 import math
 
 
@@ -11,6 +11,7 @@ class LexicalSearcher:
         self.avg_field_lengths = self._calculate_avg_field_lengths()
         self.b = 0.75
         self.k1 = 1.5
+
     def _calculate_avg_field_lengths(self):
         total_lengths = {"title": 0, "abstract": 0}
         field_counts = {"title": 0, "abstract": 0}
@@ -42,9 +43,7 @@ class LexicalSearcher:
                         avg_len = self.avg_field_lengths[field_name]
 
                         tf_component = (tf * (self.k1 + 1)) / (
-                            tf
-                            + self.k1
-                            * (1 - self.b + self.b * field_len / avg_len)
+                            tf + self.k1 * (1 - self.b + self.b * field_len / avg_len)
                         )
 
                         weighted_tf += (
@@ -64,7 +63,7 @@ class LexicalSearcher:
         idf = math.log((N - n_q + 0.5) / (n_q + 0.5) + 1)
         return idf
 
-    def search(self, query, top_k=10,b=None,k1=None):
+    def search(self, query, top_k=10, b=None, k1=None):
         self.b = self.b if b == None else b
         self.k1 = self.k1 if k1 == None else k1
 
@@ -91,3 +90,4 @@ class LexicalSearcher:
         sorted_docs = sorted(scores.items(), key=lambda item: item[1], reverse=True)
 
         return sorted_docs[:top_k]
+

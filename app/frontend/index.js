@@ -20,7 +20,7 @@ async function performSearch() {
   loadingIndicator.classList.remove("hidden");
 
   try {
-    // Fetch the JSON from your FastAPI backend
+    // Fetch the JSON from FastAPI backend
     const response = await fetch(API_URL + encodeURIComponent(query));
     const data = await response.json();
 

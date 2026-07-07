@@ -1,9 +1,9 @@
 import sys
 import os
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
-# Get the absolute path of the parent directory (the 'searchis' root)
+# Get the absolute path of the parent directory
 parent_dir = os.path.abspath("../..")
 
 # Add the parent directory to Python's module search path
@@ -24,7 +24,7 @@ app.add_middleware(
     allow_methods=["*"],  # Allows all methods
     allow_headers=["*"],  # Allows all headers
 )
-engine = SearchEngine  # Loads your FAISS, BM25, and Data
+engine = SearchEngine  # Loads FAISS, BM25, and Data
 indexed_path = "/home/rahul/searchis/core_engine/archive/output-indexed.pkl"
 vectored_path_faiss = "/home/rahul/searchis/core_engine/archive/searchis_index"
 sanitized_path = "/home/rahul/searchis/core_engine/archive/output-oai.json"
@@ -35,8 +35,10 @@ doc_metadata = engine.load_document_with_abstract(sanitized_path)
 
 
 @app.get("/search")
-def search_arxiv(query: str, top_k: int = 10):
-    # This calls your RRF fusion method
+async def search_arxiv(query: str, request: Request):
+    body = await request.json()
+    top_k = body.get("top_k") if body.get("top_k") is not None else 10
+    # This calls RRF fusion method
     results = engine.run_search_combined(
         query, top_k, doc_metadata, searcher_semantic, searcher_lexical
     )
