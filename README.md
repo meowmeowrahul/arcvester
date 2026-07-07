@@ -6,7 +6,7 @@ A high-performance, full-stack Hybrid Search Engine built from scratch to index 
 ## SYSTEM ARCHITECTURE OVERVIEW 
 The System operates by querying a sparse index and a dense vector index.All three structures has its own README.md refer it for detailed metrics.
 
-### [Core Engine](./core_engine/README.md)  (./core_engine):
+### [Core Engine](./core_engine)  (./core_engine):
 Here lies the main engine of the system.It includes main-memory data(archives),custom BM25 index,the FAISS/LSH pipelines,and Reciprocal Rank Fusion(RFF) function.
 
 ### [Benchmarks](./benchmarks/README.md) (./benchmarks):
