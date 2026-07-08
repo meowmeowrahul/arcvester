@@ -85,10 +85,14 @@ arcvester/
 
 ## Getting Started
 
-### Prerequisites
+### Prerequisites & Data Assumption
 
 - **Python 3.10+**
-- **16 GB RAM** recommended (the engine is optimized for this constraint)
+- **16 GB RAM** recommended (the engine is optimized for this constraint).
+- **Data Assumption:** To remain within Git limits, this GitHub repository does not contain the full **5 GiB raw JSON dataset**. It only contains a sample of 200 documents in `core_engine/archive-sample-200` and 50K documents in `benchmarks/dataset`. 
+- **Full Corpus Setup:** To run or build the index on the full dataset, it is assumed you already have the large dataset files placed directly inside the `core_engine/archive/` folder with the following names:
+  - `arxiv-metadata-oai-snapshot.json` (the raw 5.3 GB snapshot)
+  - `output-oai.json` (the sanitized metadata file)
 
 ### Installation
 

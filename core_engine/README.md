@@ -4,7 +4,7 @@ Low-level indexing and retrieval algorithms powering hybrid search over **3.06 m
 
 ---
 
-## Architecture Overview
+## Architecture & Data Ingestion
 
 ```
 Query
@@ -15,6 +15,11 @@ Query
 ```
 
 Two independent retrieval pipelines — lexical (BM25) and semantic (dense vector) — produce candidate sets that are merged via Reciprocal Rank Fusion.
+
+### Data Ingestion Pipeline
+The document indexing and vector ingestion flow follows this structure:
+
+![Data Pipeline](../images/data-pipeline.png)
 
 ---
 
@@ -182,6 +187,18 @@ RRF_Score(d) = Σ  1 / (k + rankᵢ(d))
 | `data_sanitizer.py`     | Raw arXiv JSON cleaning and normalization                  |
 | `stopwords.py`          | Stop-word dictionary                                       |
 | `main.py`               | Pipeline orchestrator and CLI entry point                  |
+
+---
+
+## Interactive CLI Search Interface
+
+A command-line search interface is built directly into `core_engine/main.py`. This interface allows you to communicate and query each retrieval engine individually (Lexical BM25, Custom Semantic LSH, or production FAISS index).
+
+To run the interactive CLI search utility:
+```bash
+python3 -m core_engine.main
+```
+*(Note: to run the said cli, `python3 -m core_engine.py` is also used depending on module loading preferences).*
 
 ---
 

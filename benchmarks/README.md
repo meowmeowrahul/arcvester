@@ -9,10 +9,10 @@
 
 All benchmarks follow the same rigorous protocol:
 
-- **Ground Truth Generation** — Brute-force exact matrix multiplication (`Q × Dᵀ`) over the full embedding matrix, computing pairwise cosine similarity between every query and every document to produce the absolute Top-K nearest neighbors
-- **Metric:** `Recall@K = |Approximate ∩ Exact| / K` — the fraction of the true top-K results recovered by the approximate index
-- **Evaluation Corpus** — A stratified sample (500–10,000 queries depending on the index) drawn from the full dataset, ensuring tractability while maintaining statistical validity
-- **Reproducibility** — Fixed random seeds and deterministic sampling across all experiments
+- **Ground Truth Generation** — Brute-force exact matrix multiplication (`Q × Dᵀ`) over the embedding matrix, computing pairwise cosine similarity between every query and every document to produce the absolute Top-K nearest neighbors.
+- **Metric:** `Recall@K = |Approximate ∩ Exact| / K` — the fraction of the true top-K results recovered by the approximate index.
+- **Evaluation Corpus** — To save computation time during evaluations, a corpus sample size of **50,000 documents** and a query size of **500 queries** were used. The ground truth was restricted to the **Top-10 documents** for each query.
+- **Reproducibility** — Fixed random seeds and deterministic sampling across all experiments.
 
 ```
 Recall@K = |Results_approx ∩ Results_exact| / K
@@ -22,9 +22,29 @@ Recall@K = |Results_approx ∩ Results_exact| / K
 
 ---
 
-## Data Pipeline
+## Performance Visualizations
 
-![Data Pipeline](../images/data-pipeline.png)
+The following plots were generated from the benchmark notebook runs to visualize retrieval quality and latency:
+
+### Lexical & LSH Heatmaps
+* **BM25 Parameter Grid Search (Recall@10):**
+  ![Lexical Recall Heatmap](./visualization-images/lexical_recall10_heatmap.png)
+* **LSH Recall Heatmap:**
+  ![LSH Recall Heatmap](./visualization-images/lsh_recall_heatmap.png)
+
+### LSH Analysis
+* **LSH S-Curve (Probability of collision vs Cosine Similarity):**
+  ![LSH S-Curve](./visualization-images/lsh_s_curve.png)
+* **LSH Recall vs Candidate Set Size:**
+  ![LSH Recall vs Candidates](./visualization-images/lsh_recall_vs_candidates.png)
+* **LSH Bucket Load Histogram:**
+  ![LSH Bucket Load Histogram](./visualization-images/lsh_bucket_load_histogram.png)
+
+### FAISS Benchmarks
+* **FAISS Recall vs Latency Sweep:**
+  ![FAISS Recall vs Latency](./visualization-images/faiss_recall_vs_latency.png)
+* **FAISS Pareto Frontier:**
+  ![FAISS Pareto Frontier](./visualization-images/faiss_pareto.png)
 
 ---
 
@@ -103,19 +123,19 @@ The selected `num_bits=256, bands=32` (`r=8`) configuration sits at the optimal 
 
 ## 3. Production Scaling — FAISS
 
-### The Product Quantization Trap
+### The 35.6% Recall Ceiling: Sample Size Limitations
 
-Initial attempt used `IndexIVFPQ` — FAISS's compressed index with Product Quantization:
+During initial testing, both the quantized index and the exact-vector `IndexIVFFlat` hit a strict recall ceiling of **35.6%**:
 
 | Config       | Params                            | Recall@10 | Verdict      |
 | ------------ | --------------------------------- | --------- | ------------ |
-| `IndexIVFPQ` | `d=384, m=8, nbits=8, nlist=1024` | **35.6%** | **Rejected** |
+| `IndexIVFPQ` | `d=384, m=8, nbits=8, nlist=1024` | **35.6%** | **Analyzed** |
+| `IndexIVFFlat`| `d=384, nlist=1024`               | **35.6%** | **Analyzed** |
 
-- PQ compresses each 384-dim vector into just **8 bytes** (8 sub-quantizers × 8-bit codes)
-- This **lossy compression destroyed the semantic signal** — cosine similarity between compressed vectors diverges significantly from true similarity
-- Recall capped at **~35.6%** even at `nprobe=64`, barely above random for a meaningful search engine
-
-> **Lesson:** Memory savings mean nothing if your search results are wrong.
+#### Why does recall cap at 35.6%?
+This ceiling is **not** caused by lossy compression. Instead, it is an artifact of the **50K document sample size** used for benchmarking:
+- **Centroid Mismatch & Cell Under-population:** The index is trained and configured with `nlist=1024` centroids, which is optimized for clustering the full 3.06M dataset. When run on a tiny 50K subset, documents are partitioned into extremely sparse clusters (averaging only ~48 documents per cell).
+- **Cluster Boundary Mismatch:** With so few documents per centroid, the approximate nearest neighbor boundaries become highly distorted. Query vectors collide with cells that do not contain their true top-10 neighbors, forcing a mathematical cap on recall that cannot be bypassed even by using unquantized flat vectors (`IndexIVFFlat`).
 
 ### Pivot: IndexIVFFlat
 
@@ -133,17 +153,17 @@ Switched to `IndexIVFFlat` — which stores **exact 32-bit float vectors** insid
 
 ### The Data-Driven Decision
 
-- **`nprobe=4-8`** hits the sweet spot: **sub-millisecond per-query latency** (~0.03–0.04ms) with near-maximum recall
-- Beyond `nprobe=16`, recall plateaus at 35.6% while latency continues to grow linearly — pure waste
-- The **~3x memory increase** vs PQ (full float32 vectors vs 8-byte PQ codes) is justified because PQ's recall ceiling was unacceptable for production search
+- **`nprobe=4-8`** hits the sweet spot: **sub-millisecond per-query latency** (~0.03–0.04ms) with near-maximum recall.
+- Beyond `nprobe=16`, recall plateaus at 35.6% while latency continues to grow linearly — pure waste.
+- The **~3x memory increase** vs PQ (full float32 vectors vs 8-byte PQ codes) is justified because flat vectors maintain maximum precision, avoiding any further approximation errors.
 
 > **Selected:** `IndexIVFFlat` with `nprobe=8` — **0.04ms per query** across 3M+ documents with exact inner-cluster distances.
 
 ### Why Not Just Brute Force?
 
-- Brute-force FAISS (`IndexFlatIP`) over 3M vectors at 384 dims would cost **~O(3M × 384) = ~1.15B FLOPs per query**
-- `IndexIVFFlat` with `nprobe=8` and `nlist=1024` scans only **~8/1024 = 0.78%** of the dataset per query
-- That's a **~128x speedup** for a negligible recall trade-off
+- Brute-force FAISS (`IndexFlatIP`) over 3M vectors at 384 dims would cost **~O(3M × 384) = ~1.15B FLOPs per query**.
+- `IndexIVFFlat` with `nprobe=8` and `nlist=1024` scans only **~8/1024 = 0.78%** of the dataset per query.
+- That's a **~128x speedup** for a negligible recall trade-off.
 
 ---
 
@@ -153,7 +173,7 @@ Switched to `IndexIVFFlat` — which stores **exact 32-bit float vectors** insid
 | -------------------------------- | --------------------------------- | ------------------------------------------------------------------------------------- |
 | `b=0.80` for BM25                | Default `b=0.75`                  | Grid search showed higher penalty for verbose abstracts improves recall on arXiv data |
 | Custom LSH `bits=256, b=32`      | More bands for higher recall      | Pareto analysis revealed the "Perfect Recall Trap" — more bands = O(N) blowup         |
-| `IndexIVFFlat` over `IndexIVFPQ` | PQ for 3x memory savings          | PQ capped recall at 35.6% — lossy compression destroyed semantic signal               |
+| `IndexIVFFlat` over `IndexIVFPQ` | PQ for 3x memory savings          | Quantization error is avoided; exact vectors ensure true inner-cluster matches        |
 | `nprobe=8`                       | Higher nprobe for marginal recall | Recall plateaus after nprobe=16; latency grows linearly with no benefit               |
 
 > Every hyperparameter in this engine was earned through measurement, not assumed from defaults.
