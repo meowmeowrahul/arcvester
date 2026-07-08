@@ -53,9 +53,15 @@ Each pipeline independently ranks results; RRF converts ordinal rank positions i
 
 ## Repository Structure
 
+Each main directory contains its own dedicated README detailing specific implementation, mathematical tuning, and architecture details:
+
+* **[Core Engine Documentation](./core_engine/README.md)**: Details the custom binary inverted index, custom LSH, FAISS pipeline, and RRF calculations.
+* **[Benchmarks & Evaluation](./benchmarks/README.md)**: Details the evaluation methodologies, grid searches, and metrics.
+* **[App & Full-Stack Deployment](./app/README.md)**: Details the FastAPI backend endpoints and the zero-dependency frontend implementation.
+
 ```
 arcvester/
-├── core_engine/          # Inverted index, BM25 scorer, FAISS/LSH pipelines, RRF fusion
+├── [core_engine/](./core_engine/README.md)    # Inverted index, BM25 scorer, FAISS/LSH pipelines, RRF fusion (see dedicated README)
 │   ├── inverted_index.py     # Memory-optimized binary-packed inverted index
 │   ├── lexical_searcher.py   # BM25 field-weighted search
 │   ├── faiss_index.py        # FAISS IndexIVFFlat builder and searcher
@@ -64,11 +70,11 @@ arcvester/
 │   ├── rank_fuser.py         # Reciprocal Rank Fusion
 │   └── tokenizer.py          # Tokenizer with stopword removal
 │
-├── benchmarks/           # Evaluation scripts, synthetic ground-truth datasets, hyperparameter tuning
+├── [benchmarks/](./benchmarks/README.md)     # Evaluation scripts, synthetic ground-truth datasets, hyperparameter tuning (see dedicated README)
 │   ├── benchmark.ipynb       # Recall/latency benchmarks across pipelines
 │   └── multiprocessor.py     # Parallel evaluation harness
 │
-├── app/                  # Deployment layer
+├── [app/](./app/README.md)            # Deployment layer (see dedicated README)
 │   ├── backend/              # FastAPI microservice
 │   └── frontend/             # Vanilla JS + Tailwind CSS interface
 │
