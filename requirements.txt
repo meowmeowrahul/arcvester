@@ -3,5 +3,5 @@ uvicorn>=0.20.0
 numpy>=1.22.0
 torch>=2.0.0
 sentence-transformers>=2.2.2
-faiss-cpu>=1.7.4
+faiss-gpu>=1.7.4
 psutil>=5.9.0
