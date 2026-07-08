@@ -3,7 +3,7 @@
 ## SUMMARY
 A high-performance, full-stack Hybrid Search Engine built from scratch to index and query over 3.06 million academic papers from the arXiv dataset. Rather than relying on black-box SaaS solutions, this project implements the core mechanics of Information Retrieval (IR) theory.
 
-![ui-recording](./screenshots/search-sample-recording.gif) 
+![ui-recording](/screenshots/search-sample-recording.gif) 
 
 ## SYSTEM ARCHITECTURE OVERVIEW 
 The System operates by querying a sparse index and a dense vector index.All three structures has its own README.md refer it for detailed metrics.
