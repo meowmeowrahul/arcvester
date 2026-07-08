@@ -14,10 +14,10 @@ User → Frontend (Vanilla JS) → FastAPI Backend → [FAISS + BM25 → RRF] �
 
 The app is split into two independent layers:
 
-| Layer | Stack | Role |
-|-------|-------|------|
-| **Backend** (`/backend`) | FastAPI, Uvicorn | Loads indexes into memory, executes hybrid search, returns JSON |
-| **Frontend** (`/frontend`) | Vanilla JS, Tailwind CSS (CDN) | Renders a Google-style search UI, consumes the REST API |
+| Layer                      | Stack                          | Role                                                            |
+| -------------------------- | ------------------------------ | --------------------------------------------------------------- |
+| **Backend** (`/backend`)   | FastAPI, Uvicorn               | Loads indexes into memory, executes hybrid search, returns JSON |
+| **Frontend** (`/frontend`) | Vanilla JS, Tailwind CSS (CDN) | Renders a Google-style search UI, consumes the REST API         |
 
 This separation means the backend can be deployed, scaled, and load-tested independently of the UI — and the frontend requires **zero build tooling**.
 

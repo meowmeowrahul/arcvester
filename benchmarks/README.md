@@ -34,10 +34,10 @@ Recall@K = |Results_approx ∩ Results_exact| / K
 
 Tuned the two core BM25 hyperparameters via exhaustive grid search across **500 queries**, evaluated using all available CPU cores via `multiprocessing`:
 
-| Parameter | Search Range | Step | Selected |
-|-----------|-------------|------|----------|
-| `b` (length normalization) | 0.2 – 0.8 | 0.1 | **0.80** |
-| `k1` (TF saturation) | 0.5 – 2.0 | 0.5 | **1.50** |
+| Parameter                  | Search Range | Step | Selected |
+| -------------------------- | ------------ | ---- | -------- |
+| `b` (length normalization) | 0.2 – 0.8    | 0.1  | **0.80** |
+| `k1` (TF saturation)       | 0.5 – 2.0    | 0.5  | **1.50** |
 
 ### Why `b = 0.80`?
 
@@ -66,11 +66,11 @@ A pure-Python LSH implementation must filter aggressively to avoid falling back 
 
 Tuned across **100 queries** on a 10K-document subset (pure Python constraints):
 
-| Parameter | Values Tested | Description |
-|-----------|--------------|-------------|
-| `num_bits` | 64, 128, **256** | Hash signature length |
-| `bands` (`b`) | 4, 8, 16, **32** | Number of LSH bands |
-| `rows` (`r`) | `num_bits / b` | Rows per band (derived) |
+| Parameter     | Values Tested    | Description             |
+| ------------- | ---------------- | ----------------------- |
+| `num_bits`    | 64, 128, **256** | Hash signature length   |
+| `bands` (`b`) | 4, 8, 16, **32** | Number of LSH bands     |
+| `rows` (`r`)  | `num_bits / b`   | Rows per band (derived) |
 
 Total configurations evaluated: **12** (all valid `num_bits` / `b` pairs where `num_bits % b == 0`)
 
@@ -86,12 +86,12 @@ A critical discovery during tuning:
 
 The optimal configuration lives on the **Pareto frontier** between recall and candidate set size:
 
-| Configuration | Recall@10 | Avg Candidates | % Dataset Scanned |
-|--------------|-----------|---------------|-------------------|
-| `bits=64, b=4` | Low | Very Few | ~2% |
-| `bits=128, b=16` | Moderate | Moderate | ~30% |
-| **`bits=256, b=32`** | **84.5%** | **~2,200** | **~22%** |
-| `bits=256, b=4` | ~100% | ~10,000 | ~100% (trap!) |
+| Configuration        | Recall@10 | Avg Candidates | % Dataset Scanned |
+| -------------------- | --------- | -------------- | ----------------- |
+| `bits=64, b=4`       | Low       | Very Few       | ~2%               |
+| `bits=128, b=16`     | Moderate  | Moderate       | ~30%              |
+| **`bits=256, b=32`** | **84.5%** | **~2,200**     | **~22%**          |
+| `bits=256, b=4`      | ~100%     | ~10,000        | ~100% (trap!)     |
 
 ### Result
 
@@ -107,8 +107,8 @@ The selected `num_bits=256, bands=32` (`r=8`) configuration sits at the optimal 
 
 Initial attempt used `IndexIVFPQ` — FAISS's compressed index with Product Quantization:
 
-| Config | Params | Recall@10 | Verdict |
-|--------|--------|-----------|---------|
+| Config       | Params                            | Recall@10 | Verdict      |
+| ------------ | --------------------------------- | --------- | ------------ |
 | `IndexIVFPQ` | `d=384, m=8, nbits=8, nlist=1024` | **35.6%** | **Rejected** |
 
 - PQ compresses each 384-dim vector into just **8 bytes** (8 sub-quantizers × 8-bit codes)
@@ -122,14 +122,14 @@ Initial attempt used `IndexIVFPQ` — FAISS's compressed index with Product Quan
 Switched to `IndexIVFFlat` — which stores **exact 32-bit float vectors** inside Voronoi cells, sacrificing only the clustering approximation:
 
 | `nprobe` | Recall@10 | Latency (500 queries) | Per-Query Latency |
-|----------|-----------|----------------------|-------------------|
-| 1 | 30.6% | 12.0ms | 0.024ms |
-| 2 | 34.0% | 12.6ms | 0.025ms |
-| **4** | **35.2%** | **14.1ms** | **0.028ms** |
-| **8** | **35.5%** | **21.1ms** | **0.042ms** |
-| 16 | 35.6% | 30.4ms | 0.061ms |
-| 32 | 35.6% | 53.1ms | 0.106ms |
-| 64 | 35.6% | 92.9ms | 0.186ms |
+| -------- | --------- | --------------------- | ----------------- |
+| 1        | 30.6%     | 12.0ms                | 0.024ms           |
+| 2        | 34.0%     | 12.6ms                | 0.025ms           |
+| **4**    | **35.2%** | **14.1ms**            | **0.028ms**       |
+| **8**    | **35.5%** | **21.1ms**            | **0.042ms**       |
+| 16       | 35.6%     | 30.4ms                | 0.061ms           |
+| 32       | 35.6%     | 53.1ms                | 0.106ms           |
+| 64       | 35.6%     | 92.9ms                | 0.186ms           |
 
 ### The Data-Driven Decision
 
@@ -149,11 +149,11 @@ Switched to `IndexIVFFlat` — which stores **exact 32-bit float vectors** insid
 
 ## Key Takeaways
 
-| Decision | Alternative | Why We Chose This |
-|----------|------------|-------------------|
-| `b=0.80` for BM25 | Default `b=0.75` | Grid search showed higher penalty for verbose abstracts improves recall on arXiv data |
-| Custom LSH `bits=256, b=32` | More bands for higher recall | Pareto analysis revealed the "Perfect Recall Trap" — more bands = O(N) blowup |
-| `IndexIVFFlat` over `IndexIVFPQ` | PQ for 3x memory savings | PQ capped recall at 35.6% — lossy compression destroyed semantic signal |
-| `nprobe=8` | Higher nprobe for marginal recall | Recall plateaus after nprobe=16; latency grows linearly with no benefit |
+| Decision                         | Alternative                       | Why We Chose This                                                                     |
+| -------------------------------- | --------------------------------- | ------------------------------------------------------------------------------------- |
+| `b=0.80` for BM25                | Default `b=0.75`                  | Grid search showed higher penalty for verbose abstracts improves recall on arXiv data |
+| Custom LSH `bits=256, b=32`      | More bands for higher recall      | Pareto analysis revealed the "Perfect Recall Trap" — more bands = O(N) blowup         |
+| `IndexIVFFlat` over `IndexIVFPQ` | PQ for 3x memory savings          | PQ capped recall at 35.6% — lossy compression destroyed semantic signal               |
+| `nprobe=8`                       | Higher nprobe for marginal recall | Recall plateaus after nprobe=16; latency grows linearly with no benefit               |
 
 > Every hyperparameter in this engine was earned through measurement, not assumed from defaults.
