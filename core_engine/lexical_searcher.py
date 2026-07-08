@@ -1,5 +1,5 @@
-from inverted_index import InvertedIndex, ID_TO_FIELD
-from tokenizer import tokenizer
+from core_engine.inverted_index import InvertedIndex, ID_TO_FIELD
+from core_engine.tokenizer import tokenizer
 import math
 
 

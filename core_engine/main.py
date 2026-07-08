@@ -2,15 +2,14 @@ import gc
 import json
 
 from torch import Value
-from data_sanitizer import sanitize_arxiv_record
-from faiss_index import VectorIndex
-from rank_fuser import reciprocal_rank_fusion
-from tokenizer import tokenizer
-from inverted_index import InvertedIndex
-from vectored_index import CustomVectorIndex
-from semantic_searcher import SemanticSearcher
-from lexical_searcher import LexicalSearcher
-
+from core_engine.data_sanitizer import sanitize_arxiv_record
+from core_engine.faiss_index import VectorIndex
+from core_engine.rank_fuser import reciprocal_rank_fusion
+from core_engine.tokenizer import tokenizer
+from core_engine.inverted_index import InvertedIndex
+from core_engine.vectored_index import CustomVectorIndex
+from core_engine.semantic_searcher import SemanticSearcher
+from core_engine.lexical_searcher import LexicalSearcher
 
 def run_sanitization_stage(raw_data_path, sanitized_path):
     processed_count = 0

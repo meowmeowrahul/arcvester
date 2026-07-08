@@ -1,5 +1,6 @@
 import sys
 import os
+import json
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -36,8 +37,12 @@ doc_metadata = engine.load_document_with_abstract(sanitized_path)
 
 @app.get("/search")
 async def search_arxiv(query: str, request: Request):
-    body = await request.json()
-    top_k = body.get("top_k") if body.get("top_k") is not None else 10
+    top_k = 10
+    try:
+        body = await request.json()
+        top_k = body.get("top_k") 
+    except json.JSONDecodeError:
+        top_k = 10
     # This calls RRF fusion method
     results = engine.run_search_combined(
         query, top_k, doc_metadata, searcher_semantic, searcher_lexical

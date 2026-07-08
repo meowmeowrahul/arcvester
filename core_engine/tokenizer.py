@@ -1,5 +1,5 @@
 import re
-from stopwords import stop_words
+from core_engine.stopwords import stop_words
 
 
 # Expects String of words ex: "aaaa bbb is a way"

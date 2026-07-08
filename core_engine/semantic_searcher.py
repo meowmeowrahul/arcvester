@@ -1,5 +1,5 @@
-from faiss_index import VectorIndex
-from vectored_index import CustomVectorIndex
+from core_engine.faiss_index import VectorIndex
+from core_engine.vectored_index import CustomVectorIndex
 
 
 class SemanticSearcher:

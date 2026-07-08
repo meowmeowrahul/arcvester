@@ -1,6 +1,6 @@
 from sentence_transformers import SentenceTransformer, util
-import hasher as hasher
-from lsh_custom_class import LSH
+import core_engine.hasher as hasher
+from core_engine.lsh_custom_class import LSH
 import json
 import numpy as np
 import torch
